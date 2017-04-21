@@ -4,6 +4,7 @@ using Hik.Communication.Scs.Communication.EndPoints;
 using Hik.Communication.Scs.Communication.Messages;
 using Hik.Communication.Scs.Communication.Channels;
 using Hik.Communication.Scs.Communication.Protocols;
+using Hik.Collections;
 
 namespace Hik.Communication.Scs.Server
 {
@@ -29,6 +30,7 @@ namespace Hik.Communication.Scs.Server
         /// This event is raised when client is disconnected from server.
         /// </summary>
         public event EventHandler Disconnected;
+        public event EventHandler Heartbeated;
 
         #endregion
 
@@ -38,6 +40,8 @@ namespace Hik.Communication.Scs.Server
         /// Unique identifier for this client in server.
         /// </summary>
         public long ClientId { get; set; }
+
+        public ThreadSafeSortedList<long, int> HeartbeatList { get; set; }
 
         /// <summary>
         /// Gets the communication state of the Client.
@@ -160,11 +164,24 @@ namespace Hik.Communication.Scs.Server
             if (message is ScsPingMessage)
             {
                 _communicationChannel.SendMessage(new ScsPingMessage { RepliedMessageId = message.MessageId });
+                OnHeartbeated();
+
                 return;
             }
 
             OnMessageReceived(message);
         }
+
+        private void OnHeartbeated()
+        {
+            var handler = Heartbeated;
+            if (handler != null)
+            {
+                handler(this, EventArgs.Empty);
+            }
+        }
+
+
 
         /// <summary>
         /// Handles MessageSent event of _communicationChannel object.

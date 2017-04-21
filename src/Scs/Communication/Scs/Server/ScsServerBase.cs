@@ -36,6 +36,9 @@ namespace Hik.Communication.Scs.Server
         /// </summary>
         public ThreadSafeSortedList<long, IScsServerClient> Clients { get; private set; }
 
+        public ThreadSafeSortedList<long, IScsServerClient> AliveClients { get; private set; }
+
+
         #endregion
 
         #region Private properties
@@ -44,6 +47,8 @@ namespace Hik.Communication.Scs.Server
         /// This object is used to listen incoming connections.
         /// </summary>
         private IConnectionListener _connectionListener;
+        private ThreadSafeSortedList<long, int> heartbeatList;
+        private readonly System.Timers.Timer pingTimer;
 
         #endregion
 
@@ -56,6 +61,23 @@ namespace Hik.Communication.Scs.Server
         {
             Clients = new ThreadSafeSortedList<long, IScsServerClient>();
             WireProtocolFactory = WireProtocolManager.GetDefaultWireProtocolFactory();
+            heartbeatList = new ThreadSafeSortedList<long, int>();
+            pingTimer = new System.Timers.Timer(30 * 1000);
+            pingTimer.Elapsed += pingTimer_Elapsed;
+            pingTimer.Start();
+        }
+
+        private void pingTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            foreach (var clientId in heartbeatList.GetAllKeys())
+            {
+                heartbeatList[clientId]++;
+                if (heartbeatList[clientId] >= 3)
+                {
+                    heartbeatList.Remove(clientId);
+                    AliveClients.Remove(clientId);
+                }
+            }
         }
 
         #endregion
@@ -112,13 +134,21 @@ namespace Hik.Communication.Scs.Server
             var client = new ScsServerClient(e.Channel)
             {
                 ClientId = ScsServerManager.GetClientId(),
-                WireProtocol = WireProtocolFactory.CreateWireProtocol()
+                WireProtocol = WireProtocolFactory.CreateWireProtocol(),
             };
 
             client.Disconnected += Client_Disconnected;
+            client.Heartbeated += client_Heartbeated;
             Clients[client.ClientId] = client;
+            AliveClients[client.ClientId] = client;
             OnClientConnected(client);
             e.Channel.Start();
+        }
+
+        void client_Heartbeated(object sender, EventArgs e)
+        {
+            var client = (IScsServerClient)sender;
+            heartbeatList[client.ClientId] = 0;
         }
 
         /// <summary>
@@ -130,6 +160,7 @@ namespace Hik.Communication.Scs.Server
         {
             var client = (IScsServerClient) sender;
             Clients.Remove(client.ClientId);
+            AliveClients.Remove(client.ClientId);
             OnClientDisconnected(client);
         }
 
@@ -164,5 +195,6 @@ namespace Hik.Communication.Scs.Server
         }
 
         #endregion
+
     }
 }

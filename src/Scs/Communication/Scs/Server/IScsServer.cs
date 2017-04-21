@@ -28,6 +28,11 @@ namespace Hik.Communication.Scs.Server
         /// A collection of clients that are connected to the server.
         /// </summary>
         ThreadSafeSortedList<long, IScsServerClient> Clients { get; }
+
+        /// <summary>
+        /// A collection of alive clients whom send ping message periodically.
+        /// </summary>
+        ThreadSafeSortedList<long, IScsServerClient> AliveClients { get; }
         
         /// <summary>
         /// Starts the server.
